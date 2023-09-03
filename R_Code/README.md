@@ -20,7 +20,6 @@ library(themis) # used in smote for data generation
 library(superml) # tentative - for label encoding
 library(xgboost) # load xgboost for classification
 library(vip) # feature importance
-# install.packages("vip",type="binary")
 library(car) # contains levene's test function
 library(lawstat) # contains another levene's test function
 library(lsr) # Eta test
