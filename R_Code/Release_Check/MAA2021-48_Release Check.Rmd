@@ -1,0 +1,183 @@
+---
+title: "MAA2021-48 Mirco Synthetic data release check"
+author: "Te Rourou Tātaritanga"
+date: "12/02/2023"
+output: html_document
+---
+
+###### mbiesynth is a beta library we build at MBIE, based on the code of MAA2021-48 for low fidelity synthetic data generation
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+.libPaths("C:/R_Lib/")
+library(tidyverse)
+library(mbiesynth,lib.loc = "P:/R/ruzickj/library")
+```
+
+###### Load real toy dataset
+```{r cars}
+data(adult)
+real_df<-adult
+head(real_df)
+```
+
+###### Generate low fidelity synthetic data based on real data
+
+```{r pressure, echo=FALSE}
+fake_df <- real_df %>%
+  classify_variables() %>%
+  generate_synthetic_data(bins=10)
+```
+
+###### auto schema detection to classify whether a feature is categorical (discrete) /numeric (continous)/ date/ int/ float/
+
+```{r}
+var_types<-real_df%>%
+  classify_variables()%>%
+  sapply(attr,"variable_type")
+cat_col<-names(var_types[stringr::str_detect(var_types,"categorical/")])
+num_col<-setdiff(colnames(real_df),cat_col)
+cat_col
+```
+###### Produce count table for both real and synthetic data
+```{r}
+real_counts<-real_df%>%
+  dplyr::group_by(real_df[cat_col])%>% 
+  summarise(real_count=n(),.groups = 'drop') %>% 
+  as.data.frame()
+
+fake_counts<-fake_df%>%
+  dplyr::group_by(fake_df[cat_col])%>% 
+  summarise(fake_count=n(),.groups = 'drop') %>% 
+  as.data.frame()
+```
+
+###### Apply RR3 to the count in synthetic data
+```{r}
+rr3<-function(v,base=3){
+  up<-plyr::round_any(v, base, f = ceiling)
+  down<-plyr::round_any(v, base, f = floor)
+  if(up==v){
+    v_r=v}
+  else{
+    p_up<-(up-v)/base
+    v_r<-sample(c(up,down),1,prob = c(p_up,1-p_up))}
+  return (v_r)
+}
+
+fake_counts$count_rr3<-sapply(fake_counts$fake_count, rr3)
+
+```
+
+###### merge real count and synthetic count tables, and create categories based on the counts number
+
+```{r}
+real_fake_count<-real_counts%>%
+  merge(fake_counts,by=cat_col,all=T)%>%
+  as.data.frame()%>%
+  mutate_if(is.numeric, function(x) replace_na(x, 0))%>%
+  mutate(counts_real=case_when(real_count >2 ~ '2+',
+                       real_count==2~'2',
+                       real_count==1~'1',
+                                  TRUE ~ '0'))%>%
+  mutate(counts_fake=case_when(fake_count >2 ~ '2+',
+                               fake_count==2~'2',
+                               fake_count==1~'1',
+                               TRUE ~ '0'))%>%
+  mutate(counts_fake_rr3=case_when(count_rr3 >3 ~ 'rr3+',
+                                   count_rr3==3~'rr3',
+                               TRUE ~ 'r0'))
+
+head(real_fake_count)
+```
+
+###### Produce crosstabs for counts in real data and counts/rr3_counts in synthetic data
+
+```{r}
+real_fake_count_crosstab<-real_fake_count%>%
+  group_by(counts_real,counts_fake)%>%
+  tally()%>%
+  spread(counts_fake,n)
+
+
+real_fake_rr3_crosstab<-real_fake_count%>%
+  group_by(counts_real,counts_fake_rr3)%>%
+  tally()%>%
+  spread(counts_fake_rr3,n)
+
+real_fake_count_rr3_crosstab<-merge(real_fake_count_crosstab,real_fake_rr3_crosstab,by="counts_real")
+
+real_fake_count_rr3_crosstab
+```
+##### calculate percentage based on the method proposed in He Ara Poutama mō te reo Māori.
+•	less than 80% of the synthetic 0s are original 1s and 2s,                       i.e. at least 20% of the synthetic 0s are not original 1s and 2s
+•	less than 80% of synthetic 3s are original 1s and 2s,                            i.e. at least 20% of the synthetic 3s are not original 1s and 2s.
+
+I am unsure about the calculation here??
+We can also use the table above to calculate this metrics, i.e. (6651+1203)/(10754+6651+1203+1792+21801)
+
+```{r}
+real_fake_count%>%
+  dplyr::filter(count_rr3 %in% c(0,3))%>%
+  dplyr::tally(real_count %in% c(1,2))%>%
+  magrittr:: divide_by(nrow(real_fake_count))
+```
+Based on above, one can conclude this synthetic data passed the primary round, given 18.61% is less than 80%.
+
+##### For the second round testing, we performed similiar testing for clustered subsets of 3 variables.
+
+Produce all possible combinations of 3 categorical variables out of all categorical variables
+```{r}
+all_combinations<-gtools::permutations(n=length(cat_col),r=3,v=cat_col,repeats.allowed=F)
+
+head(all_combinations)
+
+```
+###### Calculate the percentage above interatively for each combination out of all posible combinations - this step is time and computational intense.
+
+```{r}
+rates=c()
+
+for (r_id in 1:nrow(all_combinations)){
+  real_counts<-real_df%>%
+    dplyr::select(all_combinations[r_id,])%>%
+    dplyr::group_by_all()%>%
+    dplyr::count()%>%
+    dplyr::arrange(n)
+      
+  fake_counts<-fake_df%>%
+    dplyr::select(all_combinations[r_id,])%>%
+    dplyr::group_by_all()%>%
+    dplyr::count()%>%
+    dplyr::arrange(n)
+    
+  fake_counts$count_rr3<-sapply(fake_counts$n, rr3)
+  
+  real_fake_counts<-real_counts%>%
+    merge(fake_counts,by=all_combinations[r_id,],all=T)%>%
+    as.data.frame()%>%
+    mutate_if(is.numeric, function(x) replace_na(x, 0))
+
+  rate<-real_fake_counts%>%
+    dplyr::filter(count_rr3 %in% c(0,3))%>%
+    dplyr::tally(n.x %in% c(1,2))%>%
+    magrittr::divide_by(nrow(real_fake_counts))%>%
+    pull(n)
+  
+  rates<-append(rates,rate)
+
+}
+
+```
+
+######produce the final result for test round 2
+```{r}
+Result_3_cat_vars<-all_combinations%>%
+  as.data.frame(all_combinations)%>%
+  mutate(rates=rates)%>%
+  arrange(desc(rates))
+
+head(Result_3_cat_vars)
+```
+
+Based on the result above, the combination of 3 categorical variables that has the highest risk are relationship+native_country_education. However, the rate is still way under the predefined threshold of 80%. Therefore, no manual adjustment is needed. Otherwise, more synthetic data needs to be injected for the combination, or we need to remove these samples out of release check.
