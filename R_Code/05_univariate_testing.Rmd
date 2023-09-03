@@ -1,0 +1,112 @@
+---
+title: "Univariate Analysis of Generated Data"
+---
+
+The following is a set of univariate tests for comparing real and generated data. 
+
+```{r, message = FALSE, warning = FALSE, results = "hide"}
+## This script is used to conduct statistical tests on artificial and synthetic
+## data produced from a test data set, to compare data quality at each point
+
+
+# open functions
+source("functions/univariate_test_functions.R")
+
+# Univariate Testing
+original_data <- read.csv("test_data/data.csv", stringsAsFactors = TRUE)  
+simulated_data <- read.csv("output/simulated_data.csv", stringsAsFactors = TRUE)
+synthetic_data <- read.csv("output/hi_fi_synthetic_no_pre_treatment.csv", stringsAsFactors = TRUE)
+
+# KS Test-----------------------------------------------------------------------
+
+# Apply the Kolmogorov-Smirnov test
+ks_results <- apply_ks_test(original_data, synthetic_data)
+
+# get p values
+p_value <- unlist(ks_results)
+
+# create p value column for that test
+ks_results_df <- data.frame(unlist(ks_results)) %>% 
+  rownames_to_column("variable") %>% 
+  rename(ks_test_p_value = 2)
+
+# Wilcox Test-------------------------------------------------------------------
+
+# Apply the Wilcox test
+
+wilcox_results <- apply_wilcox_test(original_data, synthetic_data)
+
+# get p values
+p_value <- unlist(wilcox_results)
+
+# create p value column for that test
+wilcox_results_df <- data.frame(unlist(wilcox_results)) %>% 
+  rownames_to_column("variable")  %>% 
+  rename(wilcox_test_p_value = 2)
+
+# Mood's Median-----------------------------------------------------------------
+
+# Apply the Mood's Median test
+moods_median_results <- apply_moods_median_test(original_data, synthetic_data)
+
+# get p values
+p_value <- unlist(moods_median_results)
+
+# create p value column for that test
+moods_mdedian_results_df <- data.frame(unlist(moods_median_results)) %>% 
+  rownames_to_column("variable")  %>% 
+  rename(moods_median_test_p_value = 2)
+
+# Chi squared testing-----------------------------------------------------------
+
+# Isolate Cat_vars
+
+# Get column names
+categorical_vars <- as.data.frame(colnames(original_data)) %>% 
+  
+  # rename as var_name
+  rename(var_name = 1) %>% 
+  
+  # Join in the dataprofile info for wach var_name but only the data_types with
+  # that are categorical
+  left_join(read_csv("output/dataprofile.csv") %>% 
+              select(var_name, data_types)) %>% 
+  filter(data_types %in% c("c_cat", "c_int")) %>% 
+  
+  # select just the categorical variable names
+  select(var_name)
+
+# subset to only choose the cat_cars in original data
+original_data_cat <- subset(original_data, select = names(original_data) %in% 
+                              categorical_vars$var_name)
+
+# subset to only choose the cat_cars in synth data
+synthetic_data_cat <- subset(synthetic_data, select = names(synthetic_data) %in% 
+                               categorical_vars$var_name)
+
+
+# Apply the ChiSq Median test
+chi_sq_test_results <- apply_chi_test(original_data_cat, synthetic_data_cat)
+
+# get p values
+p_value <- unlist(chi_sq_test_results)
+
+# create p value column for that test
+chi_sq_test_results_df <- data.frame(unlist(chi_sq_test_results)) %>% 
+  rownames_to_column("variable")  %>% 
+  rename(chi_sq_test_p_value = 2)
+
+# create final univariate p value table
+univariate_test_results <- ks_results_df %>% 
+  full_join(wilcox_results_df) %>% 
+  full_join(moods_mdedian_results_df) %>% 
+  full_join(chi_sq_test_results_df) %>% 
+  
+  # Write to output folder
+  write_csv("output/univariate_test_results.csv")
+  # full_join(levene_results_df)
+
+# tidy up time 
+rm(list=ls())
+
+```

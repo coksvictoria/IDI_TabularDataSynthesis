@@ -1,0 +1,155 @@
+---
+title: "Machine Learning Model Trained on Synthetic data"
+
+---
+
+The following script is used to generate a machine learning model trained using
+synthetic data.
+
+```{r, message = FALSE, warning = FALSE, results = "hide"}
+# Select library
+.libPaths("E:/library")
+
+# Packages Required
+library(dials) # used for tuning model hyper parameters
+library(tidyverse) # wrangling
+library(recipes) # preparing data to be modeled
+library(rsample) # sampling data
+library(parsnip) # ML model package
+library(tune) # used for tuning models
+library(workflows) # used for streamlining models
+library(probably) # used for model recalibration
+library(yardstick) # used to generate stats on model
+library(doParallel) #  run loops in parrallel
+library(glmnet) # modeling package
+library(vip) # interpreting variable importance
+library(DataExplorer) # exploratory data analysis
+library(ggplot2) # charts
+library(fastshap) # ML model assessment
+
+# get profiling functions
+source("functions/profile_functions.R")
+
+# load real data
+synthetic_data <- read.csv("output/hi_fi_synthetic_no_pre_treatment.csv")
+
+# detect data types using schema_detect
+dtype <- sapply(synthetic_data,schema_detect)
+
+# Using data in dtype separate out the different types of variable 
+c_col <- names(synthetic_data)[stringr::str_detect(dtype,"c_")]
+n_col <- names(synthetic_data)[stringr::str_detect(dtype,"n_")]
+
+# convert c_cols to factors
+synthetic_data <- synthetic_data %>% 
+  mutate(across(all_of(c_col), factor))
+
+# Split the dataset into a training and a testing data set
+# creates sampling object
+df_split <- rsample::initial_split(synthetic_data, prop=0.8, strata=binaryClass)
+
+# creates training based on prop value
+train_df <- rsample::training(df_split)
+
+# creates test data set
+test_df <- rsample::testing(df_split)
+
+# creates a check data frame to understand the proportion of classes
+binary_class_check_train <- train_df %>% 
+  count(binaryClass)%>%
+  mutate(prop=n/sum(n))
+
+# creates a check data frame to understand the proportion of classes
+binary_class_check_test <- test_df %>% 
+  count(binaryClass)%>%
+  mutate(prop=n/sum(n))
+
+# create 5 splits in the training data for cross validation the model will 
+# be trained on v-1 parts and tested on the other bit
+df_cv_folds <- rsample::vfold_cv(v=5,data=train_df,strata = binaryClass)
+
+#--------------------------Preprocessing Steps---------------------------------#
+
+# Define a recipe object
+prep_rec <- recipe(binaryClass~., data = train_df) %>%
+  
+  # encode as factors
+  step_mutate_at(value, rent, incfarm, fn = factor)%>%
+  
+  # assign missing values as "unknown" for chatagoricals
+  step_unknown(all_of(c_col))%>%
+  
+  # assign medians for numbericals
+  step_impute_median(all_of(n_col))%>%
+  
+  # pool infrequent values into other category
+  step_other(all_of(c_col),threshold = 0.2)%>%
+  
+  # convert all predictors to integer values
+  step_integer(all_predictors()) %>% 
+  
+  # remove sparse or unabalanced variables
+  step_nzv(all_predictors(),freq_cut = 50/1)
+
+# Prepare the recipe
+prep(prep_rec)
+
+#-------------------Define the Machine Learning Model--------------------------#
+
+# define the xg boost model using tune() to tune hyperparameters
+xgb_model_synth <- parsnip::boost_tree(trees=100,min_n=tune(),tree_depth = tune(),learn_rate=tune())%>%
+  
+  # define the engine used
+  parsnip::set_engine("xgboost",validation=0.2)%>%
+  
+  # define the mode of the model to a classification model
+  parsnip::set_mode("classification")
+
+# Define tuning grid
+xgb_params_synth <- dials::parameters(min_n(),tree_depth(),learn_rate())
+
+# define the differnt values of hyperparameters to use in optimisation
+xgb_grid_synth <- dials::grid_max_entropy(xgb_params,size=200,iter=100)
+
+#----------------------set up work flow for using model-------------------------
+
+# define workflows with recipe (defines data and preprocess) + model used
+xgb_workflow_synth <- workflows::workflow(prep_rec, xgb_model_synth)
+
+# hyperparameters tuning with 5-fold cross validation >> this takes long time to run, be patient!
+xgb_tuned_synth <- tune::tune_grid(object=xgb_workflow_synth, resamples=df_cv_folds, grid=xgb_grid_synth,
+                            
+                          # use roc_auc as the metric to decide the best model
+                          metrics=yardstick::metric_set(roc_auc),
+                          
+                          # show the progress of the model tuning grid
+                          control=tune::control_grid(verbose = TRUE))
+
+
+#----------------------Identify the tuned model hyperparams--------------------
+
+# Select best hyperparameter based on above and finalize ML training
+xgb_best_param_synth <- xgb_tuned_synth %>%
+  
+  # based on best roc_auc 
+  tune::select_best("roc_auc") %>% 
+  
+  # output for use in model comparison
+  write.csv("models/synth_data_model_parameters.csv")
+
+# create the final model
+xgb_model_final_synth <- xgb_workflow_synth %>%
+  
+  # select the tuned parameters
+  finalize_workflow(select_best(xgb_tuned_synth, "roc_auc"))
+
+#------------------------Final Model Fit----------------------------------------
+# currently this part is skipped in favour of just taking the hyoer peramters
+
+# Do the final fit of the model
+xgb_model_fitted_synth <- xgb_model_final_synth %>% 
+  last_fit(df_split)
+
+# output model
+saveRDS(xgb_model_fitted_synth <- "synth_data_model.rds")
+```

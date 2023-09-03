@@ -1,0 +1,134 @@
+---
+title: "R Notebook"
+
+---
+
+This script is used to assess the model produced both on real and synthetic data
+for the purposes of comparison
+
+```{r, message = FALSE, warning = FALSE, results = "hide"}
+library("DALEX")
+library("ranger")
+library("modelStudio")
+
+# -----------------------------------Data Prep----------------------------------
+
+# get profiling functions
+source("functions/profile_functions.R")
+
+# prepare the real train_df for fit and test_df
+
+# load real data 
+original_data <- read.csv("test_data/data.csv")
+
+# detect data types using schema_detect
+dtype <- sapply(original_data,schema_detect)
+
+# Using data in dtype separate out the different types of variable 
+c_col <- names(original_data)[stringr::str_detect(dtype,"c_")]
+
+# convert c_cols to factors
+original_data <- original_data %>% 
+  mutate(across(all_of(c_col), factor))
+
+# Split the dataset into a training and a testing data set
+# creates sampling object
+df_split <- rsample::initial_split(original_data,prop=0.8,strata=binaryClass)
+
+# creates training based on prop value
+real_train_df <- rsample::training(df_split)
+
+# creates test data set
+test_df <- rsample::testing(df_split)
+
+# convert all variables to numeric
+real_train_df[sapply(real_train_df, is.factor)] <- data.matrix(real_train_df[sapply(real_train_df, is.factor)])
+
+# convert training outcome to factor
+real_train_df$binaryClass <- as.factor(real_train_df$binaryClass)
+
+
+# prepare the synth train_df for fit
+
+# load real data
+synthetic_data <- read.csv("output/hi_fi_synthetic_no_pre_treatment.csv")
+
+# detect data types using schema_detect
+dtype <- sapply(synthetic_data,schema_detect)
+
+# Using data in dtype separate out the different types of variable 
+c_col <- names(synthetic_data)[stringr::str_detect(dtype,"c_")]
+n_col <- names(synthetic_data)[stringr::str_detect(dtype,"n_")]
+
+# convert c_cols to factors
+synthetic_data <- synthetic_data %>% 
+  mutate(across(all_of(c_col), factor))
+
+# Split the dataset into a training and a testing data set
+# creates sampling object
+df_split <- rsample::initial_split(synthetic_data, prop=0.8, strata=binaryClass)
+
+# creates training based on prop value
+synth_train_df <- rsample::training(df_split)
+
+# convert all variables to numeric
+synth_train_df[sapply(synth_train_df, is.factor)] <- data.matrix(synth_train_df[sapply(synth_train_df, is.factor)])
+
+# convert training outcome to factor
+synth_train_df$binaryClass <- as.factor(synth_train_df$binaryClass)
+
+#---------------------------model prep-----------------------------------------
+
+# define real data model
+
+xgb_model_real_test <- parsnip::boost_tree(trees=100, tree_depth = read.csv("models/real_data_model_parameters.csv")$tree_depth, learn_rate = read.csv("models/real_data_model_parameters.csv")$learn_rate) %>%
+  
+  # define the engine used
+  parsnip::set_engine("xgboost")%>%
+  
+  # define the mode of the model to a classification model
+  parsnip::set_mode("classification") %>% 
+  
+  fit(binaryClass ~., data = real_train_df)
+
+# define synth data model
+
+xgb_model_synth_test <- parsnip::boost_tree(trees=100, tree_depth = read.csv("models/synth_data_model_parameters.csv")$tree_depth, learn_rate = read.csv("models/synth_data_model_parameters.csv")$learn_rate) %>%
+  
+  # define the engine used
+  parsnip::set_engine("xgboost")%>%
+  
+  # define the mode of the model to a classification model
+  parsnip::set_mode("classification") %>% 
+  
+  fit(binaryClass ~., data = synth_train_df)
+
+
+#-----------------------explainer for real model--------------------------------
+
+#convert binaryClass to an interger
+real_train_df$binaryClass <- as.integer(real_train_df$binaryClass)
+
+# create an explainer for the model    
+real_data_explainer <- explain(xgb_model_real_test,
+                     data = real_train_df,
+                     y = real_train_df$binaryClass,
+                     label = "Real Data Model")
+
+# make a studio for the model
+modelStudio(real_data_explainer)
+
+#-----------------------explainer for real model--------------------------------
+
+#convert binaryClass to an interger
+synth_train_df$binaryClass <- as.integer(synth_train_df$binaryClass)
+
+# create an explainer for the model    
+synth_data_explainer <- explain(xgb_model_fitted_synth,
+                     data = synth_train_df,
+                     y = synth_train_df$binaryClass,
+                     label = "Synthetic Data Model")
+
+# make a studio for the model
+modelStudio(synthetic_data_explainer)
+```

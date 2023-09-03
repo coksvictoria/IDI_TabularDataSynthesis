@@ -1,0 +1,34 @@
+---
+title: "Simulated Data Production"
+---
+
+This markdown file is used to generate simulated data from the data profile 
+produced in step 1
+
+```{r, message = FALSE, warning = FALSE, results = "hide"}
+
+
+# Add in required packages
+library("tidyverse")
+
+# pull data_profile from output file
+data_profile <- read_csv("output/dataprofile.csv")
+
+# call the artificial data functions
+
+source("functions/artificial_data_functions.R")
+  
+# create a data frame of variables with artificial data based on the profile 
+# info
+simulated_data<-lapply(data_profile$data_types,function(x) {get(x)()})%>%
+  set_names(data_profile$var_name)%>%
+  as.data.frame()
+
+# Print the simulated data to the output file
+
+write_csv(simulated_data, "output/simulated_data.csv")
+
+# Tidy up time
+rm(list = ls())
+
+```

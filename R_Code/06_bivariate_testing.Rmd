@@ -1,0 +1,212 @@
+---
+title: "Bivariate Analysis of Generated Data"
+---
+
+The following is a set of bivariate tests for comparing real and generated data. 
+
+```{r, message = FALSE, warning = FALSE, results = "hide"}
+
+# Require Packages
+library(tidyverse) # wrangling
+library(lsr) # cramersV test
+library(vcd) # phi correlation
+library(data.table) # melting tables
+
+# get functions
+source("functions/profile_functions.R")
+source("functions/bivariate_test_functions.R")
+
+# Bivariate Testing
+original_data <- read.csv("test_data/data.csv", stringsAsFactors = TRUE)
+
+# Get the variable types of the original data
+original_data_var_types <- as.data.frame(colnames(original_data)) %>% 
+  rename(var_name = 1) %>% 
+  left_join(read_csv("output/dataprofile.csv") %>% 
+              select(var_name, data_types))
+
+#  Add in whether the var_type is continuous or nominal
+original_data_var_types$test_cat <- ifelse(grepl("c_", original_data_var_types$data_types), "nominal",
+                             ifelse(grepl("n_",original_data_var_types$data_types), "continuous", ""))
+
+# convert c_bin variables to dichotomous in test cat
+original_data_var_types$test_cat[original_data_var_types$data_types == "c_bin"] <- "dichotomous" 
+  
+# create a correlation_matrix
+cor_matrix_original_data <- cor_matrix_creator(original_data_var_types, original_data)
+
+# remove diagonal from the matric
+diag(cor_matrix_original_data) = NA
+
+# apply the function to the cor matrix to get lower tri and melt to create adataframe
+melted_original_data <- melt(get_lower_tri(cor_matrix_original_data), na.rm = TRUE) %>% 
+  rename(Correlation = value)
+
+# create a plot of the treated cor matrix
+ggplot(melted_original_data, aes(x=Var1, y=Var2, fill=Correlation)) +
+  
+  # Set the size of the chart
+  theme_minimal(base_size = 9) +
+  
+  #Set the theme of the chart elements
+  theme(
+    legend.text=element_text(face="bold"),
+    axis.ticks=element_line(size=0.4),
+    panel.border=element_blank(),
+    axis.text.x=element_text(angle = 45, hjust =1),
+    legend.position = "bottom"
+  ) +
+  
+  # Add labels
+  labs(x="", y="", title = "Original Data Correlation Matrix")+
+  
+  # Set the tile colour scheme
+  scale_fill_gradient2(low ="#009dff", high = "#FF0000") +
+  
+  # Set the tile size
+  geom_tile(colour="white", size=0.25)
+  
+# save as a pdf  
+ggsave("data_plots/original_data_bivariate_cor_matrix.pdf", plot = last_plot(), device = "pdf")
+
+
+#----------------Repeat with the synthetic data---------------------------------
+
+# Read in synthetic data
+synthetic_data <- read.csv("output/hi_fi_synthetic_no_pre_treatment.csv", stringsAsFactors = TRUE)
+
+# get the variable types
+synthetic_data_var_types <- as.data.frame(colnames(synthetic_data)) %>% 
+  rename(var_name = 1) %>% 
+  left_join(read_csv("output/dataprofile.csv") %>% 
+              select(var_name, data_types))
+
+#  Add in whether the var_type is continuous or nominal
+synthetic_data_var_types$test_cat <- ifelse(grepl("c_", synthetic_data_var_types$data_types), "nominal",
+                             ifelse(grepl("n_",synthetic_data_var_types$data_types), "continuous", ""))
+
+# convert c_bin variables to dichotomous in test cat
+synthetic_data_var_types$test_cat[synthetic_data_var_types$data_types == "c_bin"] <- "dichotomous"
+
+# create a correlation_matrix
+cor_matrix_synthetic_data <- cor_matrix_creator(synthetic_data_var_types, synthetic_data)
+
+# remove the diagonal form the correlation matrix
+diag(cor_matrix_synthetic_data) = NA
+
+# grab lower tri of cor matrix and melt in dataframe
+melted_synthetic_data <- melt(get_lower_tri(cor_matrix_synthetic_data), na.rm = TRUE) %>% 
+  rename(Correlation = value)
+
+# plot using ggplot
+ggplot(melted_synthetic_data, aes(x=Var1, y=Var2, fill=Correlation)) +
+  
+  # Set the size of the chart
+  theme_minimal(base_size = 9) +
+  
+  #Set the theme of the chart elements
+  theme(
+    legend.text=element_text(face="bold"),
+    axis.ticks=element_line(size=0.4),
+    panel.border=element_blank(),
+    axis.text.x=element_text(angle = 45, hjust =1),
+    legend.position = "bottom"
+  ) +
+  
+  # Add labels
+  labs(x="", y="", title = "Synthetic Data Correlation Matrix")+
+  
+  # Set the tile colour scheme
+  scale_fill_gradient2(low ="#009dff", high = "#FF0000") +
+  
+  # Set the tile size
+  geom_tile(colour="white", size=0.25)
+
+# save as a pdf  
+ggsave("data_plots/synthetic_data_bivariate_cor_matrix.pdf", plot = last_plot(), device = "pdf")
+
+# Difference between matrix----------------------------------------------------
+
+difference_matrix <- abs(get_lower_tri(cor_matrix_original_data) - get_lower_tri(cor_matrix_synthetic_data))
+
+melted_difference_data <- melt(difference_matrix, na.rm = TRUE) %>% 
+  rename(Correlation = value)
+
+ggplot(melted_difference_data, aes(x=Var1, y=Var2, fill=Correlation)) +
+  
+  # Set the size of the chart
+  theme_minimal(base_size = 9) +
+  
+  #Set the theme of the chart elements
+  theme(
+    legend.text=element_text(face="bold"),
+    axis.ticks=element_line(size=0.4),
+    panel.border=element_blank(),
+    axis.text.x=element_text(angle = 45, hjust =1),
+    legend.position = "bottom"
+  ) +
+  
+  # Add labels
+  labs(x="", y="", title = "Differnce Data Correlation Matrix")+
+  
+  # Set the tile colour scheme
+  scale_fill_gradient2(low ="#009dff", high = "#FF0000") +
+  
+  # Set the tile size
+  geom_tile(colour="white", size=0.25)
+
+# save as a pdf  
+ggsave("data_plots/difference_bivariate_cor_matrix.pdf", plot = last_plot(), device = "pdf")
+
+#------------------Additional Testing-------------------------------------------
+
+# KC tests in the correlations
+
+# Apply the Kolmogorov-Smirnov test on the correlations
+ks_results <- ks.test(melted_original_data$Correlation, melted_synthetic_data$Correlation)
+
+# Reload data as original
+synthetic_data <- read_csv("output/hi_fi_synthetic_no_pre_treatment.csv")
+original_data <- read_csv("test_data/data.csv")
+
+# Run the schema detect on the on the synthetic data
+# Apply the data profiling functions over the dataframes in df_list
+profile_synth <-data.frame(
+  "data_types_synth" = sapply(synthetic_data, schema_detect),
+  "average_char"= sapply(synthetic_data, average_char),
+  "n_missing"= sapply(synthetic_data, n_missing),
+  "p_missing"= sapply(synthetic_data, p_missing),
+  "n_distinct"= sapply(synthetic_data, get_n_distinct),
+  "mean_mode"= sapply(synthetic_data,get_mean),
+  "max_major"= sapply(synthetic_data,get_max),
+  "min_minor"= sapply(synthetic_data,get_min)) %>% 
+  rownames_to_column("var_name")%>%
+  mutate(mean_mode=as.character(mean_mode),
+         max_major=as.character(max_major),
+         min_minor=as.character(min_minor))%>%
+  bind_rows() 
+
+# Run the schema detect on the on the  data
+# Apply the data profiling functions over the dataframes in df_list
+profile_original <-data.frame(
+  "data_types_original" = sapply(original_data, schema_detect),
+  "average_char"= sapply(original_data, average_char),
+  "n_missing"= sapply(original_data, n_missing),
+  "p_missing"= sapply(original_data, p_missing),
+  "n_distinct"= sapply(original_data, get_n_distinct),
+  "mean_mode"= sapply(original_data,get_mean),
+  "max_major"= sapply(original_data,get_max),
+  "min_minor"= sapply(original_data,get_min)) %>% 
+  rownames_to_column("var_name")%>%
+  mutate(mean_mode=as.character(mean_mode),
+         max_major=as.character(max_major),
+         min_minor=as.character(min_minor))%>%
+  bind_rows() 
+
+# compare the profiles
+profile_compare <- profile_original %>%
+  select(var_name, data_types_original) %>% 
+  left_join(profile_synth %>% 
+              select(var_name,data_types_synth)) %>% 
+  mutate(test = if_else(data_types_original == data_types_synth, "TRUE", "FALSE"))
+```

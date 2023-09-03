@@ -1,0 +1,39 @@
+---
+title: "Data Profiling Step"
+---
+
+This Markdown script is used to catalogue the data file that is to be 
+synthesised
+
+```{r, message = FALSE, warning = FALSE, results = "hide"}
+
+# Profile Functions
+source("functions/profile_functions.R")
+# get test data
+
+testdata <- read.csv("test_data/data.csv")
+
+
+# Apply the data profiling functions over the dataframes in df_list
+profile <-data.frame(
+             "data_types" = sapply(testdata, schema_detect),
+             "average_char"= sapply(testdata, average_char),
+             "n_missing"= sapply(testdata, n_missing),
+             "p_missing"= sapply(testdata, p_missing),
+             "n_distinct"= sapply(testdata, get_n_distinct),
+              "mean_mode"= sapply(testdata,get_mean),
+             "max_major"= sapply(testdata,get_max),
+             "min_minor"= sapply(testdata,get_min)) %>% 
+    rownames_to_column("var_name")%>%
+    mutate(mean_mode=as.character(mean_mode),
+           max_major=as.character(max_major),
+           min_minor=as.character(min_minor))%>%
+  bind_rows() %>% 
+  
+# write the data profile to the output folder in excel and csv files types
+
+  write_csv("output/dataprofile.csv")
+# tidy up time
+rm(list = ls())
+
+```

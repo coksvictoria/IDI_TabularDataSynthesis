@@ -1,0 +1,157 @@
+---
+title: "Hi-Fi Synthetic Data"
+---
+
+This R Markdown file is used to generate high fidelity synthetic data based on the sample data set provided.
+
+```{r, message = FALSE, warning = FALSE, results = "hide"}
+
+
+# Require libraries
+library(synthpop) # synthetic data production
+library(tidyverse) # wrangling etc
+library(recipes) # prepare data for modelling
+library(themis) # create balanced data
+
+# Pull the schema functions
+source("functions/profile_functions.R")
+
+# get test data
+data <- read.csv("test_data/data.csv", stringsAsFactors = TRUE)
+n_samples<-dim(data)[1]
+
+# detect data types
+dtype<-sapply(data,schema_detect)
+
+# Using data in dtype separate out the different types of variable 
+c_col<-names(data)[stringr::str_detect(dtype,"c_")]
+
+## Method 1) Try to treat all variables as numeric, so sequential regression----
+
+data[c_col]<-lapply(data[c_col],as.numeric)
+
+# Synthetic data production using synth pop
+synth.obj_1<-syn(data,seed=1)
+synthetic_1<-synth.obj_1$syn
+
+# Print synthetic data file
+write_csv(synthetic_1, "output/hi_fi_synthetic_data_numeric_variables.csv")
+
+## Method 2) Trim high cardinality columns by collapsing some categorical levels
+
+# Reload the data 
+data <- read.csv("test_data/data.csv")
+
+# pull out the categorical variables into seperate dataframe - make sure all col
+# are factors so reipie step works
+cat_cols <- as.tibble(lapply(data[c_col], as.factor))
+
+
+prep_rec<-recipe(cat_cols, data = cat_cols) %>% 
+  step_other(all_of(c_col),threshold = 0.2)%>%
+  prep()
+
+# apply the recipe to the real data 
+collapsed<-bake(prep_rec,data)
+
+# replace the cat variables in the real data with the trained cols
+data[c_col]<-collapsed[c_col]
+lapply(data[c_col], function(x) as.data.frame(table(x,useNA = "always")))
+ 
+# Create Synthetic Data 
+synth.obj_2<-syn(data,seed=1)
+
+# Extract the Data form the Syn Environment created in Synthpop
+synthetic_2<-synth.obj_2$syn
+
+# Print synthetic data file
+write_csv(synthetic_2, "output/hi_fi_synthetic_data_trim_high_cardinality.csv")
+
+##quick visual testing
+# par(mfrow=c(2,4))
+# for (i in n_col){
+#   hist(data[,i],main=paste0("",i))
+# }
+# 
+# par(mfrow=c(2,4))
+# for (i in n_col){
+#   hist(synthetic_2[,i],main=paste0("",i))
+# }
+
+
+## Method 3) SMOTE based method-------------------------------------------------
+
+# Create a fake and real data set based on the original data set
+
+# Reload the data 
+data <- read.csv("test_data/data.csv", stringsAsFactors = TRUE)
+
+# create 2 versions of the data and call one real and one fake
+df_real<-data
+df_fake<-data
+
+# Create column in each dataset do identify if the data is real or not which is
+# then used to generate data via smote to redress the inbalance between in real=
+# 0 and 1
+df_real$real<-1
+df_fake$real<-0
+
+# as.numeric(df_rff$sex)
+# df_rff$sex
+
+# combine real and fake data in single data frame with more data fake data
+df_rff<-rbind(df_real,df_fake,df_fake)
+
+# convert combined data set to numeric  variable
+df_rff<-as.data.frame(sapply(df_rff,as.numeric))
+
+# convert the real/fake ID to a factor
+df_rff$real<-as.factor(df_rff$real)
+
+# synthetic data production to oversample the real = 1 data
+synthetic_rff<-recipe(real~.,data=df_rff) %>%
+  recipes::step_impute_median(all_predictors())%>%
+  themis::step_smote(real,over_ratio=1)%>%
+  prep()%>%
+  bake(new_data=NULL) 
+
+# remove the real column
+synthetic_rff$real<-NULL
+
+# sample n_samples (defined above) from tail of the new dataframe which is the 
+# smote generate data
+synthetic_3 <-as.data.frame(sapply(tail(synthetic_rff,n_samples),as.integer))
+
+# Print synthetic data file
+write_csv(synthetic_3, "output/hi_fi_synthetic_data_smote_generated.csv")
+
+## Method 4 - synthpop no pretreatment------------------------------------------
+
+# Pull data again
+data <- readRDS("test_data/data.RDS")
+
+# Create synthestic data using synthpop with no pre-treatment
+synth.obj_4 <- syn(data, seed = 1)
+
+# Isolate the synthetic data object
+synthetic_4 <- synth.obj_4$syn
+
+# Print synthetic data file
+write_csv(synthetic_4, "output/hi_fi_synthetic_no_pre_treatment.csv")
+
+# Tidy up time
+rm(list = ls())
+
+# Utility Testing if Required
+
+## utility testing
+
+# Automated comparison of data and synth data
+#compare(synthetic_1,data)
+
+# Utility of synthetic data vs real data
+# utility.gen(synthetic_1,data, print.variable.importance = TRUE, nperms = 10)
+
+# Create viz of synth and real data comparison
+# multi.compare(synthetic,data,var="age",by="sex",cont.type = "boxplot")
+```

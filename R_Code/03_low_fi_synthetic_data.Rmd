@@ -1,0 +1,50 @@
+---
+title: "Lo fi Synthetic Data Production"
+---
+
+This R Markdown file is used to generate low fidelity synthetic data based on the sample data set provided.
+
+```{r, message = FALSE, warning = FALSE, results = "hide"}
+## The following script is used to create synthetic
+## data based on the test data set 
+
+
+# Required functions
+source("functions/artificial_data_functions.R")
+source("functions/profile_functions.R")
+source("functions/synthetic_data_functions.R")
+
+# Required Packages
+library(tidyverse)
+
+# Load Data
+df <- read.csv("test_data/data.csv")
+
+# Find column names
+col_names<-colnames(df)
+
+# Create a missing data list
+missing_value<-lapply(df, function(x) sum(is.na(x)))
+
+# detect data types
+dtype<-sapply(df,schema_detect)
+
+# Using data in dtype seperate out the different types of variable 
+c_col<-names(df)[stringr::str_detect(dtype,"c_")]
+n_col<-names(df)[stringr::str_detect(dtype,"n_")]
+int_col<-names(df)[stringr::str_detect(dtype,"_int")]
+
+# calculate distributions for n and c cols
+cat_dist<-sapply(df[c_col],calculate_category_distribution)
+num_dist<-lapply(df[n_col],calculate_quantiles,4)
+
+# generate synthestic data
+synthetic_data <- df_generation(n_samples = nrow(df), col_names,c_col,cat_dist,num_dist,int_col,missing_value) 
+  
+  # Print the simulated data to the output file
+  write_csv(synthetic_data, "output/lo_fi_synthetic_test_data.csv")
+
+# Tidy up time
+rm(list = ls())
+
+```
