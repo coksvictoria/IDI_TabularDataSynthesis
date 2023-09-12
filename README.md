@@ -4,7 +4,7 @@
 ## Abstract
 The Integrated Data Infrastructure (IDI) in New Zealand is a critical asset that integrates citizen data from various public and private organizations for population-level analyses. However, access restrictions within the IDI environment present challenges for fully utilizing its potential. This study examines synthetic data as a potential solution, offering a comprehensive framework for generating customizable and easily implementable synthetic data. The evaluation of multiple data synthesis algorithms considers statistical similarity, machine learning utility, and privacy concerns. The findings reveal that distance-based algorithms, like SMOTE, strike a balance between accuracy and computational cost, making them suitable for IDI. The study also identifies the need for a clear release guide for micro-level synthetic data and proposes exploring a fully automatic data evaluation pipeline in future research. Additionally, the study highlights opportunities enabled by synthetic data, such as familiarization with administrative datasets, reproducibility of studies, pilot analyses, and enhanced cross-domain collaboration. Overall, the proposed framework and findings offer valuable insights and guidance for synthetic data projects within the IDI, advancing synthetic data privacy research and facilitating reproducibility, collaboration, and data sharing in the IDI ecosystem.
 
-![alt text](workflow.svg)
+
 
 ## Unified data synthesis pipeline
 An overview of the tabular data synthesis pipeline based on real data can be summarised in six steps:
@@ -16,7 +16,7 @@ An overview of the tabular data synthesis pipeline based on real data can be sum
 5. **data evaluation** the data evaluation metrics need to be selected based on the downstream tasks.
 6. **post-generation transformation**  Instead of a linear, one-time evaluation, these two steps form a cyclical flow. In each cycle, the process entails evaluating the synthetic data from multiple perspectives, including data utility and privacy, compared to real data.
 
-
+![alt text](workflow.svg)
 
 ## Results
 
