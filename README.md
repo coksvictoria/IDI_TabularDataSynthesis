@@ -25,6 +25,20 @@ In conclusion, our findings provide valuable insights and guidance for future sy
 ## Availability and implementation
 Source code and data are available at [GitHub](https://github.com/coksvictoria/IDI_TabularDataSynthesis/)
 
+### High-Level steps
++ Step 1. Get Data:
+00_GetData.ipynb
+
++ Step 2&3. Schema detection and feature selection:
+01_DataProfile.ipynb
+
++ Step 4. Data Generation:
+02_DataGeneration.ipynb
+
++ Step 5&6. Data Evaluation and post-generation transformation:
+03_DataEvaluation:
+
+
 ## Contact 
 [Go to contact information](https://homepages.ecs.vuw.ac.nz/~nguyenb5/contact.html)
 
