@@ -14,9 +14,7 @@ An overview of the tabular data synthesis pipeline based on real data can be sum
 5. **data evaluation** the data evaluation metrics need to be selected based on the downstream tasks.
 6. **post-generation transformation**  Instead of a linear, one-time evaluation, these two steps form a cyclical flow. In each cycle, the process entails evaluating the synthetic data from multiple perspectives, including data utility and privacy, compared to real data.
 
-This synthethic data will then be added to the original training data. The augmented training data will then be used to train a white-box model, for example a shallow decision tree. The resulting performance gain is then used as a proxy for augmentation quality.
 
-This work was done as part of my Bachelor thesis "Benchmarking Tabular Data Synthesis Pipelines for Mixed Data".
 
 ## Installation
 
