@@ -42,3 +42,16 @@ Source code and data are available at [GitHub](https://github.com/coksvictoria/I
 ## Contact 
 [Go to contact information](https://homepages.ecs.vuw.ac.nz/~nguyenb5/contact.html)
 
+## Reference
+We appreciate your citations if you find this repository useful to your research!
+@article{wang2024enhancing,
+  title={Enhancing public research on citizen data: An empirical investigation of data synthesis using Statistics New Zealand’s Integrated Data Infrastructure},
+  author={Wang, Alex X and Chukova, Stefanka S and Sporle, Andrew and Milne, Barry J and Simpson, Colin R and Nguyen, Binh P},
+  journal={Information Processing \& Management},
+  volume={61},
+  number={1},
+  pages={103558},
+  year={2024},
+  publisher={Elsevier}
+}
+
