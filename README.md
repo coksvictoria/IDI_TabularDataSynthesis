@@ -44,6 +44,7 @@ Source code and data are available at [GitHub](https://github.com/coksvictoria/I
 
 ## Reference
 We appreciate your citations if you find this repository useful to your research!
+```
 @article{wang2024enhancing,
   title={Enhancing public research on citizen data: An empirical investigation of data synthesis using Statistics New Zealand’s Integrated Data Infrastructure},
   author={Wang, Alex X and Chukova, Stefanka S and Sporle, Andrew and Milne, Barry J and Simpson, Colin R and Nguyen, Binh P},
@@ -54,4 +55,5 @@ We appreciate your citations if you find this repository useful to your research
   year={2024},
   publisher={Elsevier}
 }
+```
 
